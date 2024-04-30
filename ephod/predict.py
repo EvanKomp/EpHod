@@ -66,19 +66,22 @@ def parse_arguments():
 
 
 
-def write_attention_weights(args, accs, seqs, attention_weights, attention_dir):
+def write_attention_weights(args, accs, seqs, attention_weights, esm_attentions, attention_dir):
     '''Write attention weights for each sequence'''
     
     for i, (acc,seq) in enumerate(zip(accs, seqs)):
         seqlen = len(seq)
         weights = attention_weights[i,:,:seqlen].to('cpu').detach().numpy()
+        esm_weights = esm_attentions[i,:,:seqlen].to('cpu').detach().numpy()
         if args.attention_mode == 'average':
             weights = weights.mean(axis=0).transpose()
+            esm_weights = esm_weights.mean(axis=0).transpose()
         elif args.attention_mode == 'max':
             weights = weights.max(axis=0).transpose()
+            esm_weights = esm_weights.max(axis=0).transpose()
         else:
             raise ValueError("attention_mode must be either 'average' or 'max'")
-        weights = pd.DataFrame(weights.transpose(), index=list(seq), columns=['weights'])
+        weights = pd.DataFrame({'weights': weights.transpose(), 'esm_weights': esm_weights.transpose()}, index=list(seq))
         weights.to_csv(f'{attention_dir}/{acc}.csv')
     
         
@@ -200,11 +203,11 @@ def main():
                 seqs = sequences[start_idx : stop_idx]
                 
                 # Predict with EpHod model
-                ypred, emb_ephod, attention_weights = ephod_model.batch_predict(accs, seqs)
+                (ypred, emb_ephod, attention_weights), esm_attentions = ephod_model.batch_predict(accs, seqs)
                 all_ypred.extend(ypred.to('cpu').detach().numpy())
                 all_emb_ephod.extend(emb_ephod.to('cpu').detach().numpy())
                 if args.save_attention_weights:
-                    _ = write_attention_weights(args, accs, seqs, attention_weights,
+                    _ = write_attention_weights(args, accs, seqs, attention_weights, esm_attentions,
                                                 attention_dir)
                 
         if args.save_embeddings:

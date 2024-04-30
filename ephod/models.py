@@ -275,12 +275,20 @@ class EpHodModel():
         data = [(accs[i], seqs[i]) for i in range(len(accs))]
         batch_labels, batch_strs, batch_tokens = self.esm1v_batch_converter(data)
         batch_tokens = batch_tokens.to(device=self.device, non_blocking=True)
-        emb = self.esm1v_model(batch_tokens, repr_layers=[33], return_contacts=False)
+        emb = self.esm1v_model(batch_tokens, repr_layers=[33], return_contacts=False, need_head_weights=True)
+        attentions = emb["attentions"]
         emb = emb["representations"][33]
         emb = emb.transpose(2,1) # From (batch, seqlen, features) to (batch, features, seqlen)
         emb = emb.to(self.device)
 
-        return emb
+        # mean attentions over heads
+        # attentions of shape (batch, layers, heads, seqlen, seqlen)
+        # take last layer and average over head to get a vector of average attention weight for each position
+        attentions = attentions[:, -1, :, :, :].mean(axis=1)
+        # squeeze
+
+
+        return emb, attentions
     
     
     def load_RLAT_model(self):
@@ -309,15 +317,15 @@ class EpHodModel():
     def batch_predict(self, accs, seqs):
         '''Predict pHopt with EpHod on a batch of sequences'''
         
-        emb_esm1v = self.get_ESM1v_embeddings(accs, seqs)
+        emb_esm1v, esm_attentions = self.get_ESM1v_embeddings(accs, seqs)
         maxlen = emb_esm1v.shape[-1]
         masks = [[1] * len(seqs[i]) + [0] * (maxlen - len(seqs[i])) \
                  for i in range(len(seqs))]
         masks = torch.tensor(masks, dtype=torch.int32)
         masks = masks.to(self.device)
-        output = self.rlat_model(emb_esm1v, masks) # (ypred, emb_ephod, attention_weights)
-        
-        return output
+        rlat_output = self.rlat_model(emb_esm1v, masks) # (ypred, emb_ephod, attention_weights)
+
+        return rlat_output, esm_attentions
     
     
     
