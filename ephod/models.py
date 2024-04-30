@@ -10,6 +10,7 @@ import os
 import builtins
 
 import torch
+import torch.backends
 import torch.nn as nn
 from torch.nn.parallel import DataParallel
 import esm
@@ -38,6 +39,9 @@ def print(*args, **kwargs):
 
 def download_models(get_from='zenodo'):
     '''Download saved models (EpHod and AAC-SVR)'''
+    if os.path.exists('saved_models'):
+        print('EpHod models already exist in saved_models directory')
+        return
     
     if get_from == 'googledrive':
         
@@ -244,7 +248,9 @@ class EpHodModel():
     def __init__(self):
 
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-        if self.device != 'cuda':
+        if self.device == 'cpu':
+            self.device = 'mps' if torch.backends.mps.is_available() else 'cpu'
+        if self.device == 'cpu':
             print('WARNING: You are not using a GPU which will be slow.')
         self.esm1v_model, self.esm1v_batch_converter = self.load_ESM1v_model()
         self.rlat_model = self.load_RLAT_model()
