@@ -316,7 +316,11 @@ class EpHodModel():
     
     def batch_predict(self, accs, seqs):
         '''Predict pHopt with EpHod on a batch of sequences'''
-        
+
+        # set the models to eval mode
+        self.esm1v_model.eval()
+        self.rlat_model.eval()
+
         emb_esm1v, esm_attentions = self.get_ESM1v_embeddings(accs, seqs)
         maxlen = emb_esm1v.shape[-1]
         masks = [[1] * len(seqs[i]) + [0] * (maxlen - len(seqs[i])) \
